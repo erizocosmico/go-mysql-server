@@ -1,8 +1,8 @@
 package parse
 
 import (
+	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -34,11 +34,6 @@ func Parse(s string) (sql.Node, error) {
 		return plan.NewShowTables(&sql.UnresolvedDatabase{}), nil
 	}
 
-	t := regexp.MustCompile(`^describe\s+table\s+(.*)`).FindStringSubmatch(strings.ToLower(s))
-	if len(t) == 2 && t[1] != "" {
-		return plan.NewDescribe(plan.NewUnresolvedTable(t[1])), nil
-	}
-
 	stmt, err := sqlparser.Parse(s)
 	if err != nil {
 		return nil, err
@@ -55,6 +50,8 @@ func convert(stmt sqlparser.Statement) (sql.Node, error) {
 		return convertSelect(n)
 	case *sqlparser.Insert:
 		return convertInsert(n)
+	case *sqlparser.Describe:
+		return convertDescribe(n)
 	}
 }
 
@@ -123,6 +120,13 @@ func convertInsert(i *sqlparser.Insert) (sql.Node, error) {
 		src,
 		columnsToStrings(i.Columns),
 	), nil
+}
+
+func convertDescribe(desc *sqlparser.Describe) (sql.Node, error) {
+	if desc.Column != nil {
+		return nil, errors.New("describing a table with column name is unsupported")
+	}
+	return plan.NewDescribe(plan.NewUnresolvedTable(desc.Table.String())), nil
 }
 
 func columnsToStrings(cols sqlparser.Columns) []string {
