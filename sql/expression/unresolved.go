@@ -12,7 +12,7 @@ func NewUnresolvedColumn(name string) *UnresolvedColumn {
 	return &UnresolvedColumn{name}
 }
 
-// Resolved implements the Resolvable interface.
+// Resolved implements the Expression interface.
 func (UnresolvedColumn) Resolved() bool {
 	return false
 }
@@ -37,7 +37,7 @@ func (UnresolvedColumn) Eval(r sql.Row) interface{} {
 	return "FAIL" //FIXME
 }
 
-// TransformUp implements the Transformable interface.
+// TransformUp implements the Expression interface.
 func (uc *UnresolvedColumn) TransformUp(f func(sql.Expression) sql.Expression) sql.Expression {
 	n := *uc
 	return f(&n)
@@ -61,7 +61,7 @@ func NewUnresolvedFunction(
 	return &UnresolvedFunction{name, agg, children}
 }
 
-// Resolved implements the Resolvable interface.
+// Resolved implements the Expression interface.
 func (UnresolvedFunction) Resolved() bool {
 	return false
 }
@@ -86,7 +86,7 @@ func (UnresolvedFunction) Eval(r sql.Row) interface{} {
 	return "FAIL" //FIXME
 }
 
-// TransformUp implements the Transformable interface.
+// TransformUp implements the Expression interface.
 func (uf *UnresolvedFunction) TransformUp(f func(sql.Expression) sql.Expression) sql.Expression {
 	var rc []sql.Expression
 	for _, c := range uf.Children {

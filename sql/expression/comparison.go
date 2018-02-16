@@ -44,7 +44,7 @@ func (e Equals) Eval(row sql.Row) interface{} {
 	return e.ChildType.Compare(a, b) == 0
 }
 
-// TransformUp implements the Transformable interface.
+// TransformUp implements the Expression interface.
 func (e *Equals) TransformUp(f func(sql.Expression) sql.Expression) sql.Expression {
 	lc := e.BinaryExpression.Left.TransformUp(f)
 	rc := e.BinaryExpression.Right.TransformUp(f)
@@ -90,7 +90,7 @@ func (re Regexp) Eval(row sql.Row) interface{} {
 	return reg.MatchString(sl)
 }
 
-// TransformUp implements the Transformable interface.
+// TransformUp implements the Expression interface.
 func (re *Regexp) TransformUp(f func(sql.Expression) sql.Expression) sql.Expression {
 	lc := re.BinaryExpression.Left.TransformUp(f)
 	rc := re.BinaryExpression.Right.TransformUp(f)
@@ -124,7 +124,7 @@ func (gt GreaterThan) Eval(row sql.Row) interface{} {
 	return gt.ChildType.Compare(a, b) == 1
 }
 
-// TransformUp implements the Transformable interface.
+// TransformUp implements the Expression interface.
 func (gt *GreaterThan) TransformUp(f func(sql.Expression) sql.Expression) sql.Expression {
 	lc := gt.BinaryExpression.Left.TransformUp(f)
 	rc := gt.BinaryExpression.Right.TransformUp(f)
@@ -153,7 +153,7 @@ func (lt LessThan) Eval(row sql.Row) interface{} {
 	return lt.ChildType.Compare(a, b) == -1
 }
 
-// TransformUp implements the Transformable interface.
+// TransformUp implements the Expression interface.
 func (lt *LessThan) TransformUp(f func(sql.Expression) sql.Expression) sql.Expression {
 	lc := lt.BinaryExpression.Left.TransformUp(f)
 	rc := lt.BinaryExpression.Right.TransformUp(f)
@@ -183,7 +183,7 @@ func (gte GreaterThanOrEqual) Eval(row sql.Row) interface{} {
 	return gte.ChildType.Compare(a, b) > -1
 }
 
-// TransformUp implements the Transformable interface.
+// TransformUp implements the Expression interface.
 func (gte *GreaterThanOrEqual) TransformUp(f func(sql.Expression) sql.Expression) sql.Expression {
 	lc := gte.BinaryExpression.Left.TransformUp(f)
 	rc := gte.BinaryExpression.Right.TransformUp(f)
@@ -213,7 +213,7 @@ func (lte LessThanOrEqual) Eval(row sql.Row) interface{} {
 	return lte.ChildType.Compare(a, b) < 1
 }
 
-// TransformUp implements the Transformable interface.
+// TransformUp implements the Expression interface.
 func (lte *LessThanOrEqual) TransformUp(f func(sql.Expression) sql.Expression) sql.Expression {
 	lc := lte.BinaryExpression.Left.TransformUp(f)
 	rc := lte.BinaryExpression.Right.TransformUp(f)
