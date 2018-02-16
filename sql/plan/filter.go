@@ -55,10 +55,16 @@ type filterIter struct {
 func (i *filterIter) Next() (sql.Row, error) {
 	for {
 		row, err := i.childIter.Next()
-
 		if err != nil {
 			return nil, err
-		} else if i.f.expression.Eval(row) == true {
+		}
+
+		ok, err := i.f.expression.Eval(row)
+		if err != nil {
+			return nil, err
+		}
+
+		if ok == true {
 			return row, nil
 		}
 	}

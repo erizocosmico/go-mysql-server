@@ -33,8 +33,8 @@ func (uc UnresolvedColumn) Name() string {
 }
 
 // Eval implements the Expression interface.
-func (UnresolvedColumn) Eval(r sql.Row) interface{} {
-	return "FAIL" //FIXME
+func (UnresolvedColumn) Eval(r sql.Row) (interface{}, error) {
+	return "FAIL", nil //FIXME
 }
 
 // TransformUp implements the Expression interface.
@@ -82,8 +82,8 @@ func (uf UnresolvedFunction) Name() string {
 }
 
 // Eval implements the Expression interface.
-func (UnresolvedFunction) Eval(r sql.Row) interface{} {
-	return "FAIL" //FIXME
+func (UnresolvedFunction) Eval(r sql.Row) (interface{}, error) {
+	return "FAIL", nil //FIXME
 }
 
 // TransformUp implements the Expression interface.

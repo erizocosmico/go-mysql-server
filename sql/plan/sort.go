@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"fmt"
 	"io"
 	"sort"
 
@@ -170,8 +171,17 @@ func (s *sorter) Less(i, j int) bool {
 	b := s.rows[j]
 	for _, sf := range s.sortFields {
 		typ := sf.Column.Type()
-		av := sf.Column.Eval(a)
-		bv := sf.Column.Eval(b)
+		av, err := sf.Column.Eval(a)
+		if err != nil {
+			// TODO: figure out how to not panic
+			panic(fmt.Errorf("unable to sort: %s", err))
+		}
+
+		bv, err := sf.Column.Eval(b)
+		if err != nil {
+			// TODO: figure out how to not panic
+			panic(fmt.Errorf("unable to sort: %s", err))
+		}
 
 		if av == nil {
 			return sf.NullOrdering == NullsFirst
