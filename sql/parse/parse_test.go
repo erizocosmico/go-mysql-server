@@ -326,6 +326,29 @@ var fixtures = map[string]sql.Node{
 			plan.NewUnresolvedTable("foo"),
 		),
 	),
+	`SELECT * FROM foo WHERE a = (SELECT b FROM bar WHERE c = d)`: plan.NewProject(
+		[]sql.Expression{expression.NewStar()},
+		plan.NewFilter(
+			expression.NewEquals(
+				expression.NewUnresolvedColumn("a"),
+				expression.NewSubquery(
+					plan.NewProject(
+						[]sql.Expression{
+							expression.NewUnresolvedColumn("b"),
+						},
+						plan.NewFilter(
+							expression.NewEquals(
+								expression.NewUnresolvedColumn("c"),
+								expression.NewUnresolvedColumn("d"),
+							),
+							plan.NewUnresolvedTable("bar"),
+						),
+					),
+				),
+			),
+			plan.NewUnresolvedTable("foo"),
+		),
+	),
 }
 
 func TestParse(t *testing.T) {

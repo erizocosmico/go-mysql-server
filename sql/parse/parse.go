@@ -423,6 +423,13 @@ func exprToExpression(e sqlparser.Expr) (sql.Expression, error) {
 			exprs[i] = expr
 		}
 		return expression.NewTuple(exprs...), nil
+	case *sqlparser.Subquery:
+		subquery, err := convert(v.Select)
+		if err != nil {
+			return nil, err
+		}
+
+		return expression.NewSubquery(subquery), nil
 	}
 }
 
