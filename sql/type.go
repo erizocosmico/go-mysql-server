@@ -108,6 +108,9 @@ var (
 	JSON jsonT
 	// Blob is a type that holds a chunk of binary data.
 	Blob blobT
+
+	// Tuple is a fixed-size collection of values.
+	Tuple tupleT
 )
 
 type nullT struct{}
@@ -373,6 +376,24 @@ func (t jsonT) Convert(v interface{}) (interface{}, error) {
 // Compare implements Type interface.
 func (t jsonT) Compare(a interface{}, b interface{}) int {
 	return bytes.Compare(a.([]byte), b.([]byte))
+}
+
+type tupleT struct{}
+
+func (t tupleT) Type() query.Type {
+	return sqltypes.Expression
+}
+
+func (t tupleT) SQL(v interface{}) sqltypes.Value {
+	panic("unable to convert tuple type to SQL")
+}
+
+func (t tupleT) Convert(v interface{}) (interface{}, error) {
+	return nil, fmt.Errorf("unable to convert tuple type")
+}
+
+func (t tupleT) Compare(a, b interface{}) int {
+	panic("unable to compare two tuple values")
 }
 
 // MustConvert calls the Convert function from a given Type, it err panics.

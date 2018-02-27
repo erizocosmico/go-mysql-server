@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-vitess.v0/sqltypes"
 )
 
 func TestType_Text(t *testing.T) {
@@ -130,4 +131,21 @@ func TestType_JSON(t *testing.T) {
 	require.Equal(-1, JSON.Compare([]byte{'A'}, []byte{'B'}))
 	require.Equal(0, JSON.Compare([]byte{'A'}, []byte{'A'}))
 	require.Equal(1, JSON.Compare([]byte{'B'}, []byte{'A'}))
+}
+
+func TestType_Tuple(t *testing.T) {
+	require := require.New(t)
+
+	_, err := Tuple.Convert(nil)
+	require.Error(err)
+
+	require.Panics(func() {
+		Tuple.Compare(nil, nil)
+	})
+
+	require.Panics(func() {
+		Tuple.SQL(nil)
+	})
+
+	require.Equal(sqltypes.Expression, Tuple.Type())
 }
