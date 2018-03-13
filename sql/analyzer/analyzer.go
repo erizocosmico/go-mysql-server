@@ -2,7 +2,6 @@ package analyzer
 
 import (
 	"fmt"
-	"reflect"
 
 	multierror "github.com/hashicorp/go-multierror"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -57,7 +56,7 @@ func (a *Analyzer) Analyze(n sql.Node) (sql.Node, error) {
 	}
 
 	i := 0
-	for !reflect.DeepEqual(prev, cur) {
+	for prev != cur {
 		prev = cur
 		cur, err = a.analyzeOnce(cur)
 		if err != nil {
