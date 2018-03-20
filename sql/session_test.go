@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-mysql-server.v0/config"
 )
 
 type testNode struct{}
@@ -64,7 +65,7 @@ func (t *testNodeIterator) Close() error {
 func TestSessionIterator(t *testing.T) {
 	require := require.New(t)
 	ctx, cancelFunc := context.WithCancel(context.TODO())
-	session := NewBaseSession()
+	session := NewBaseSession(config.New())
 
 	node := &testNode{}
 	iter, err := node.RowIter(NewContext(ctx, session))

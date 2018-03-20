@@ -5,20 +5,21 @@ import (
 	"sync"
 
 	uuid "github.com/satori/go.uuid"
+	"gopkg.in/src-d/go-mysql-server.v0/config"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-vitess.v0/mysql"
 )
 
 // SessionBuilder creates sessions given a context and a MySQL connection.
-type SessionBuilder func(*mysql.Conn) sql.Session
+type SessionBuilder func(*config.Config, *mysql.Conn) sql.Session
 
 // DoneFunc is a function that must be executed when the session is used and
 // it can be disposed.
 type DoneFunc func()
 
 // DefaultSessionBuilder is a SessionBuilder that returns a base session.
-func DefaultSessionBuilder(_ *mysql.Conn) sql.Session {
-	return sql.NewBaseSession()
+func DefaultSessionBuilder(conf *config.Config, _ *mysql.Conn) sql.Session {
+	return sql.NewBaseSession(conf)
 }
 
 // SessionManager is in charge of creating new sessions for the given
@@ -27,16 +28,18 @@ func DefaultSessionBuilder(_ *mysql.Conn) sql.Session {
 type SessionManager struct {
 	mu              *sync.Mutex
 	builder         SessionBuilder
+	config          *config.Config
 	sessions        map[uint32]sql.Session
 	sessionContexts map[uint32][]uuid.UUID
 	contexts        map[uuid.UUID]context.CancelFunc
 }
 
 // NewSessionManager creates a SessionManager with the given ContextBuilder.
-func NewSessionManager(builder SessionBuilder) *SessionManager {
+func NewSessionManager(config *config.Config, builder SessionBuilder) *SessionManager {
 	return &SessionManager{
 		mu:              new(sync.Mutex),
 		builder:         builder,
+		config:          config,
 		sessions:        make(map[uint32]sql.Session),
 		sessionContexts: make(map[uint32][]uuid.UUID),
 		contexts:        make(map[uuid.UUID]context.CancelFunc),
@@ -46,7 +49,7 @@ func NewSessionManager(builder SessionBuilder) *SessionManager {
 // NewSession creates a Session for the given connection.
 func (s *SessionManager) NewSession(conn *mysql.Conn) {
 	s.mu.Lock()
-	s.sessions[conn.ConnectionID] = s.builder(conn)
+	s.sessions[conn.ConnectionID] = s.builder(s.config, conn)
 	s.mu.Unlock()
 }
 

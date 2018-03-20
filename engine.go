@@ -1,6 +1,7 @@
 package sqle
 
 import (
+	"gopkg.in/src-d/go-mysql-server.v0/config"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression/function"
@@ -9,6 +10,7 @@ import (
 
 // Engine is a SQL engine.
 type Engine struct {
+	Config   *config.Config
 	Catalog  *sql.Catalog
 	Analyzer *analyzer.Analyzer
 }
@@ -19,7 +21,7 @@ func New() *Engine {
 	c.RegisterFunctions(function.Defaults)
 
 	a := analyzer.New(c)
-	return &Engine{c, a}
+	return &Engine{config.New(), c, a}
 }
 
 // Query executes a query without attaching to any context.

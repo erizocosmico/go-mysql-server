@@ -1,7 +1,6 @@
 package sqle_test
 
 import (
-	"context"
 	"fmt"
 	"io"
 
@@ -12,7 +11,7 @@ import (
 
 func Example() {
 	e := sqle.New()
-	ctx := gitqlsql.NewContext(context.TODO(), gitqlsql.NewBaseSession())
+	ctx := gitqlsql.NewEmptyContext()
 
 	// Create a test memory database and register it to the default engine.
 	e.AddDatabase(createTestDatabase())

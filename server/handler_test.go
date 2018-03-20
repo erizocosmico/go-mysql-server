@@ -37,7 +37,7 @@ func TestHandlerOutput(t *testing.T) {
 
 	dummyConn := &mysql.Conn{ConnectionID: 1}
 
-	handler := NewHandler(e, NewSessionManager(DefaultSessionBuilder))
+	handler := NewHandler(e, NewSessionManager(e.Config, DefaultSessionBuilder))
 
 	c := 0
 	var lastRowsAffected uint64

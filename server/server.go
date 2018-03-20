@@ -23,7 +23,7 @@ func NewDefaultServer(
 // NewServer creates a server with the given protocol, address, authentication
 // details given a SQLe engine and a session builder.
 func NewServer(protocol, address string, auth mysql.AuthServer, e *sqle.Engine, sb SessionBuilder) (*Server, error) {
-	handler := NewHandler(e, NewSessionManager(sb))
+	handler := NewHandler(e, NewSessionManager(e.Config, sb))
 	l, err := mysql.NewListener(protocol, address, auth, handler)
 	if err != nil {
 		return nil, err
