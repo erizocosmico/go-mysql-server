@@ -142,3 +142,8 @@ func (c *Config) StringSlice(k string, defaultValue []string) ([]string, error) 
 
 	return v.([]string), nil
 }
+
+// Parent returns the parent config.
+func (c *Config) Parent() *Config {
+	return c.parent
+}
