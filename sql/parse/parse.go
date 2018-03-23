@@ -50,6 +50,30 @@ func convert(ctx *sql.Context, stmt sqlparser.Statement) (sql.Node, error) {
 	switch n := stmt.(type) {
 	default:
 		return nil, ErrUnsupportedSyntax.New(n)
+	case *sqlparser.Set:
+		var scope plan.Scope
+		switch n.Scope {
+		case sqlparser.SessionStr:
+			scope = plan.SessionScope
+		case sqlparser.GlobalStr:
+			scope = plan.GlobalScope
+		}
+
+		var updates = make([]plan.Update, len(n.Exprs))
+		for i, e := range n.Exprs {
+			// TODO: support qualifiers?
+			expr, err := exprToExpression(e.Expr)
+			if err != nil {
+				return nil, err
+			}
+
+			updates[i] = plan.Update{
+				Name:  e.Name.Name.String(),
+				Value: expr,
+			}
+		}
+
+		return plan.NewSet(scope, updates), nil
 	case *sqlparser.Show:
 		return convertShow(n)
 	case *sqlparser.Select:

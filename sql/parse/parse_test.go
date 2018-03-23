@@ -478,6 +478,20 @@ var fixtures = map[string]sql.Node{
 			plan.NewUnresolvedTable("foo"),
 		),
 	),
+	`SET SESSION a=1, b=true`: plan.NewSet(
+		plan.SessionScope,
+		[]plan.Update{
+			{Name: "a", Value: expression.NewLiteral(int64(1), sql.Int64)},
+			{Name: "b", Value: expression.NewLiteral(true, sql.Boolean)},
+		},
+	),
+	`SET GLOBAL a=1, b=true`: plan.NewSet(
+		plan.GlobalScope,
+		[]plan.Update{
+			{Name: "a", Value: expression.NewLiteral(int64(1), sql.Int64)},
+			{Name: "b", Value: expression.NewLiteral(true, sql.Boolean)},
+		},
+	),
 }
 
 func TestParse(t *testing.T) {
@@ -508,4 +522,8 @@ func TestParseErrors(t *testing.T) {
 			require.Equal(expectedError.Error(), err.Error())
 		})
 	}
+}
+
+func TestTest(t *testing.T) {
+	Parse(nil, "SET A=1")
 }

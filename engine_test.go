@@ -1,10 +1,12 @@
 package sqle_test
 
 import (
+	"context"
 	"io"
 	"testing"
 
 	"gopkg.in/src-d/go-mysql-server.v0"
+	"gopkg.in/src-d/go-mysql-server.v0/config"
 	"gopkg.in/src-d/go-mysql-server.v0/mem"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/parse"
@@ -210,6 +212,22 @@ func TestQueries(t *testing.T) {
 			{"third row"},
 		},
 	)
+
+	testQuery(t, e,
+		"SET SESSION a='foo', b=true",
+		[][]interface{}{
+			{"a", "foo"},
+			{"b", true},
+		},
+	)
+
+	testQuery(t, e,
+		"SET GLOBAL a='foo', b=true",
+		[][]interface{}{
+			{"a", "foo"},
+			{"b", true},
+		},
+	)
 }
 
 func TestInsertInto(t *testing.T) {
@@ -312,7 +330,14 @@ func TestDDL(t *testing.T) {
 func testQuery(t *testing.T, e *sqle.Engine, q string, r [][]interface{}) {
 	t.Run(q, func(t *testing.T) {
 		require := require.New(t)
-		ctx := sql.NewEmptyContext()
+		ctx := sql.NewContext(
+			context.TODO(),
+			sql.NewBaseSession(
+				config.FromConfig(
+					config.New(),
+				),
+			),
+		)
 
 		_, rows, err := e.Query(ctx, q)
 		require.NoError(err)
