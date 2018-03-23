@@ -1,7 +1,11 @@
 package config
 
 import (
+	"os"
+	"strconv"
+	"strings"
 	"sync"
+	"unicode"
 
 	errors "gopkg.in/src-d/go-errors.v0"
 )
@@ -146,4 +150,67 @@ func (c *Config) StringSlice(k string, defaultValue []string) ([]string, error) 
 // Parent returns the parent config.
 func (c *Config) Parent() *Config {
 	return c.parent
+}
+
+// LoadFromEnv loads the given config keys from the environment.
+func (c *Config) LoadFromEnv(keys ...string) error {
+	for _, k := range keys {
+		val, ok := os.LookupEnv(k)
+		if !ok {
+			continue
+		}
+
+		switch true {
+		case isBool(val):
+			c.SetBool(k, strings.ToLower(val) == "true")
+		case isInt(val):
+			n, err := strconv.ParseInt(val, 10, 64)
+			if err != nil {
+				return err
+			}
+			c.SetInt(k, n)
+		case isFloat(val):
+			f, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				return err
+			}
+			c.SetFloat(k, f)
+		default:
+			c.SetString(k, val)
+		}
+	}
+
+	return nil
+}
+
+func isBool(v string) bool {
+	switch strings.ToLower(v) {
+	case "true", "false":
+		return true
+	default:
+		return false
+	}
+}
+
+func isInt(v string) bool {
+	for _, r := range v {
+		if !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
+}
+
+func isFloat(v string) bool {
+	var dot bool
+	for _, r := range v {
+		if !unicode.IsDigit(r) {
+			if !dot && r == '.' {
+				dot = true
+				continue
+			}
+			return false
+		}
+	}
+	return dot
 }

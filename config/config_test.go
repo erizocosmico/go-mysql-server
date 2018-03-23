@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -125,4 +126,98 @@ func config() *Config {
 	parent.SetBool("bool", true)
 	parent.SetStringSlice("slice", "a", "b", "c")
 	return FromConfig(parent)
+}
+
+func TestLoadFromEnv(t *testing.T) {
+	require := require.New(t)
+
+	os.Setenv("ENV_FLOAT1", ".1")
+	os.Setenv("ENV_FLOAT2", "2.")
+	os.Setenv("ENV_FLOAT3", "2.5")
+	os.Setenv("ENV_INT", "25")
+	os.Setenv("ENV_BOOL1", "true")
+	os.Setenv("ENV_BOOL2", "false")
+	os.Setenv("ENV_STR", "something")
+	os.Setenv("ENV_UNUSED", "yada yada")
+
+	c := New()
+	require.NoError(c.LoadFromEnv(
+		"ENV_FLOAT1",
+		"ENV_FLOAT2",
+		"ENV_FLOAT3",
+		"ENV_INT",
+		"ENV_BOOL1",
+		"ENV_BOOL2",
+		"ENV_STR",
+	))
+
+	require.Equal(map[string]interface{}{
+		"ENV_FLOAT1": .1,
+		"ENV_FLOAT2": 2.,
+		"ENV_FLOAT3": 2.5,
+		"ENV_INT":    int64(25),
+		"ENV_BOOL1":  true,
+		"ENV_BOOL2":  false,
+		"ENV_STR":    "something",
+	}, c.kv)
+}
+
+func TestIsBool(t *testing.T) {
+	testCases := []struct {
+		input    string
+		expected bool
+	}{
+		{"true", true},
+		{"false", true},
+		{"TRUE", true},
+		{"t", false},
+		{"12345", false},
+		{"fdsfjlsdj", false},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.input, func(t *testing.T) {
+			require.Equal(t, tt.expected, isBool(tt.input))
+		})
+	}
+}
+
+func TestIsInt(t *testing.T) {
+	testCases := []struct {
+		input    string
+		expected bool
+	}{
+		{"1", true},
+		{"123", true},
+		{"0123", true},
+		{"t", false},
+		{"123.45", false},
+		{"1234f", false},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.input, func(t *testing.T) {
+			require.Equal(t, tt.expected, isInt(tt.input))
+		})
+	}
+}
+
+func TestIsFloat(t *testing.T) {
+	testCases := []struct {
+		input    string
+		expected bool
+	}{
+		{".1", true},
+		{"1.", true},
+		{"1.23", true},
+		{"123", false},
+		{"lkjfsldfjk", false},
+		{"123.4f", false},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.input, func(t *testing.T) {
+			require.Equal(t, tt.expected, isFloat(tt.input))
+		})
+	}
 }
