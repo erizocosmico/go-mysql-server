@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	opentracing "github.com/opentracing/opentracing-go"
 	"gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -127,6 +128,7 @@ func convertSelect(ctx *sql.Context, s *sqlparser.Select) (sql.Node, error) {
 }
 
 func convertDDL(c *sqlparser.DDL) (sql.Node, error) {
+	spew.Dump(c)
 	switch c.Action {
 	case sqlparser.CreateStr:
 		return convertCreateTable(c)
@@ -479,7 +481,7 @@ func exprToExpression(e sqlparser.Expr) (sql.Expression, error) {
 	case *sqlparser.NullVal:
 		return expression.NewLiteral(nil, sql.Null), nil
 	case *sqlparser.ColName:
-		//TODO: add handling of case sensitiveness.
+		// TODO: add handling of case sensitiveness.
 		if !v.Qualifier.IsEmpty() {
 			return expression.NewUnresolvedQualifiedColumn(
 				v.Qualifier.Name.String(),

@@ -560,6 +560,14 @@ var fixtures = map[string]sql.Node{
 		},
 		plan.NewUnresolvedTable("dual"),
 	),
+	`CREATE VIEW foo AS SELECT 1 + 2`: plan.NewProject(
+		[]sql.Expression{
+			expression.NewPlus(
+				expression.NewLiteral("1", sql.Text), expression.NewLiteral("2", sql.Text),
+			),
+		},
+		plan.NewUnresolvedTable("dual"),
+	),
 }
 
 func TestParse(t *testing.T) {
