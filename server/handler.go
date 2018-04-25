@@ -11,7 +11,7 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
-	"github.com/sirupsen/logrus"
+	"gopkg.in/src-d/go-log.v0"
 	"gopkg.in/src-d/go-vitess.v0/mysql"
 	"gopkg.in/src-d/go-vitess.v0/sqltypes"
 	"gopkg.in/src-d/go-vitess.v0/vt/proto/query"
@@ -50,7 +50,7 @@ func (h *Handler) NewConnection(c *mysql.Conn) {
 	h.mu.Unlock()
 
 	h.sm.NewSession(c)
-	logrus.Infof("NewConnection: client %v", c.ConnectionID)
+	log.Infof("NewConnection: client %v", c.ConnectionID)
 }
 
 // ConnectionClosed reports that a connection has been closed.
@@ -61,7 +61,7 @@ func (h *Handler) ConnectionClosed(c *mysql.Conn) {
 	delete(h.c, c.ConnectionID)
 	h.mu.Unlock()
 
-	logrus.Infof("ConnectionClosed: client %v", c.ConnectionID)
+	log.Infof("ConnectionClosed: client %v", c.ConnectionID)
 }
 
 // ComQuery executes a SQL query on the SQLe engine.
@@ -145,7 +145,7 @@ func (h *Handler) handleKill(query string) (bool, error) {
 		return false, err
 	}
 
-	logrus.Infof("handleKill: id %v", id)
+	log.Infof("handleKill: id %v", id)
 
 	h.mu.Lock()
 	c, ok := h.c[uint32(id)]

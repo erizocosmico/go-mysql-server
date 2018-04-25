@@ -5,8 +5,8 @@ import (
 	"reflect"
 
 	multierror "github.com/hashicorp/go-multierror"
-	"github.com/sirupsen/logrus"
 	"gopkg.in/src-d/go-errors.v1"
+	"gopkg.in/src-d/go-log.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
@@ -78,7 +78,7 @@ func (a *Analyzer) AddValidationRule(name string, fn ValidationRuleFunc) {
 // if the analyzer is in debug mode.
 func (a *Analyzer) Log(msg string, args ...interface{}) {
 	if a != nil && a.Debug {
-		logrus.Infof(msg, args...)
+		log.Infof(msg, args...)
 	}
 }
 
