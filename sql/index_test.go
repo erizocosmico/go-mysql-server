@@ -13,16 +13,29 @@ func TestIndexByExpression(t *testing.T) {
 	require := require.New(t)
 
 	r := NewIndexRegistry()
-	r.indexOrder = []indexKey{{"foo", ""}}
-	r.indexes[indexKey{"foo", ""}] = &dummyIdx{
-		database: "foo",
-		expr:     []Expression{dummyExpr{1, "2"}},
+	r.indexOrder = []indexKey{
+		{"foo", ""},
+		{"foo", "bar"},
 	}
+	r.indexes = map[indexKey]Index{
+		indexKey{"foo", ""}: &dummyIdx{
+			database: "foo",
+			expr:     []Expression{dummyExpr{1, "2"}},
+		},
+		indexKey{"foo", "bar"}: &dummyIdx{
+			database: "foo",
+			expr:     []Expression{dummyExpr{1, "3"}},
+		},
+	}
+	r.statuses[indexKey{"foo", ""}] = IndexReady
 
 	idx := r.IndexByExpression("bar", dummyExpr{1, "2"})
 	require.Nil(idx)
 
 	idx = r.IndexByExpression("foo", dummyExpr{1, "2"})
+	require.NotNil(idx)
+
+	idx = r.IndexByExpression("foo", dummyExpr{1, "3"})
 	require.NotNil(idx)
 
 	idx = r.IndexByExpression("foo", dummyExpr{2, "3"})
