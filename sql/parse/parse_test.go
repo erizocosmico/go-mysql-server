@@ -631,3 +631,53 @@ func TestParseErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestRemoveComments(t *testing.T) {
+	testCases := []struct {
+		input  string
+		output string
+	}{
+		{
+			`/* FOO BAR BAZ */`,
+			``,
+		},
+		{
+			`SELECT 1 -- something`,
+			`SELECT 1 `,
+		},
+		{
+			`SELECT 1 --something`,
+			`SELECT 1 --something`,
+		},
+		{
+			`SELECT ' -- something'`,
+			`SELECT ' -- something'`,
+		},
+		{
+			`SELECT /* FOO */ 1;`,
+			`SELECT  1;`,
+		},
+		{
+			`SELECT '/* FOO */ 1';`,
+			`SELECT '/* FOO */ 1';`,
+		},
+		{
+			`SELECT "\"/* FOO */ 1\"";`,
+			`SELECT "\"/* FOO */ 1\"";`,
+		},
+		{
+			`SELECT '\'/* FOO */ 1\'';`,
+			`SELECT '\'/* FOO */ 1\'';`,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.input, func(t *testing.T) {
+			require.Equal(
+				t,
+				tt.output,
+				removeComments(tt.input),
+			)
+		})
+	}
+}

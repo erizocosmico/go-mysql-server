@@ -290,6 +290,30 @@ var queries = []struct {
 			{string("third row3")},
 		},
 	},
+	{
+		`SELECT @@GLOBAL.FOO, @@SESSION.BAR`,
+		[]sql.Row{{nil, nil}},
+	},
+	{
+		`SET @@GLOBAL.FOO = 1`,
+		[]sql.Row{},
+	},
+	{
+		`/*!40101 SET NAMES utf8 */;`,
+		[]sql.Row{},
+	},
+	{
+		`SHOW VARIABLES LIKE 'foo%'`,
+		[]sql.Row{},
+	},
+	{
+		`SHOW DATABASES`,
+		[]sql.Row{{"mydb"}},
+	},
+	{
+		`USE foo`,
+		[]sql.Row{},
+	},
 }
 
 func TestQueries(t *testing.T) {

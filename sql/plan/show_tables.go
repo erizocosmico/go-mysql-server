@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"io"
 	"sort"
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -41,14 +40,19 @@ func (*ShowTables) Schema() sql.Schema {
 
 // RowIter implements the Node interface.
 func (p *ShowTables) RowIter(ctx *sql.Context) (sql.RowIter, error) {
-	tableNames := []string{}
+	var tableNames []string
 	for key := range p.Database.Tables() {
 		tableNames = append(tableNames, key)
 	}
 
 	sort.Strings(tableNames)
 
-	return &showTablesIter{tableNames: tableNames}, nil
+	var rows = make([]sql.Row, len(tableNames))
+	for i, t := range tableNames {
+		rows[i] = sql.Row{t}
+	}
+
+	return sql.RowsToRowIter(rows...), nil
 }
 
 // TransformUp implements the Transformable interface.
@@ -63,24 +67,4 @@ func (p *ShowTables) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, 
 
 func (p ShowTables) String() string {
 	return "ShowTables"
-}
-
-type showTablesIter struct {
-	tableNames []string
-	idx        int
-}
-
-func (i *showTablesIter) Next() (sql.Row, error) {
-	if i.idx >= len(i.tableNames) {
-		return nil, io.EOF
-	}
-	row := sql.NewRow(i.tableNames[i.idx])
-	i.idx++
-
-	return row, nil
-}
-
-func (i *showTablesIter) Close() error {
-	i.tableNames = nil
-	return nil
 }

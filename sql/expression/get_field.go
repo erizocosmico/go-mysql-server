@@ -91,3 +91,45 @@ func (p *GetField) WithIndex(n int) sql.Expression {
 	p2.fieldIndex = n
 	return &p2
 }
+
+// UnsupportedGetField is meant to be a GetField that always returns nil,
+// because its missing support for certain features.
+type UnsupportedGetField struct {
+	table string
+	name  string
+}
+
+// NewUnsupportedGetField creates a new UnsupportedGetField expression.
+func NewUnsupportedGetField(table, name string) *UnsupportedGetField {
+	return &UnsupportedGetField{table, name}
+}
+
+// Table implements the Tableable interface.
+func (u *UnsupportedGetField) Table() string { return u.table }
+
+// Name implements the Nameable interface.
+func (u *UnsupportedGetField) Name() string { return u.name }
+
+// Type implements the Expression interface.
+func (UnsupportedGetField) Type() sql.Type { return sql.Text }
+
+// Resolved implements the Expression interface.
+func (UnsupportedGetField) Resolved() bool { return true }
+
+// IsNullable implements the Expression interface.
+func (UnsupportedGetField) IsNullable() bool { return true }
+
+// Children implements the Expression interface.
+func (UnsupportedGetField) Children() []sql.Expression { return nil }
+
+// Eval implements the Expression interface.
+func (UnsupportedGetField) Eval(*sql.Context, sql.Row) (interface{}, error) { return nil, nil }
+
+func (u *UnsupportedGetField) String() string {
+	return fmt.Sprintf("%s.%s", u.table, u.name)
+}
+
+// TransformUp implements the Expression interface.
+func (u *UnsupportedGetField) TransformUp(sql.TransformExprFunc) (sql.Expression, error) {
+	return u, nil
+}

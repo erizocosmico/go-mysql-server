@@ -830,9 +830,9 @@ func TestQualifyColumns(t *testing.T) {
 	require.Equal(expected, result)
 }
 
-func TestCatalogIndex(t *testing.T) {
+func TestAssignCatalog(t *testing.T) {
 	require := require.New(t)
-	f := getRule("index_catalog")
+	f := getRule("assign_catalog")
 
 	c := sql.NewCatalog()
 	a := NewDefault(c)
@@ -855,6 +855,12 @@ func TestCatalogIndex(t *testing.T) {
 	require.True(ok)
 	require.Equal(c, di.Catalog)
 	require.Equal("foo", di.CurrentDatabase)
+
+	node, err = f.Apply(sql.NewEmptyContext(), a, plan.NewShowDatabases())
+	require.NoError(err)
+	sd, ok := node.(*plan.ShowDatabases)
+	require.True(ok)
+	require.Equal(c, sd.Catalog)
 }
 
 func TestReorderProjection(t *testing.T) {

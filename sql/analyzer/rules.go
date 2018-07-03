@@ -32,7 +32,7 @@ var DefaultRules = []Rule{
 	{"move_join_conds_to_filter", moveJoinConditionsToFilter},
 	{"optimize_distinct", optimizeDistinct},
 	{"erase_projection", eraseProjection},
-	{"index_catalog", indexCatalog},
+	{"assign_catalog", assignCatalog},
 }
 
 var (
@@ -349,7 +349,9 @@ func qualifyColumns(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error)
 						)
 					}
 
-					if _, ok := tables[col.Table()]; !ok {
+					t := strings.ToLower(col.Table())
+					_, ok := tables[col.Table()]
+					if !ok && t != "@@global" && t != "@@session" {
 						return nil, sql.ErrTableNotFound.New(col.Table())
 					}
 				}
@@ -683,7 +685,8 @@ func resolveColumns(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error)
 			}
 
 			columns, ok := colMap[uc.Name()]
-			if !ok {
+			t := strings.ToLower(uc.Table())
+			if !ok && t != "@@global" && t != "@@session" {
 				switch uc := uc.(type) {
 				case *expression.UnresolvedColumn:
 					a.Log("evaluation of column %q was deferred", uc.Name())
@@ -712,7 +715,11 @@ func resolveColumns(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error)
 			}
 
 			if !found {
-				if uc.Table() != "" {
+				if t == "@@global" || t == "@@session" {
+					return expression.NewUnsupportedGetField(uc.Table(), uc.Name()), nil
+				}
+
+				if t != "" {
 					return nil, ErrColumnTableNotFound.New(uc.Table(), uc.Name())
 				}
 
@@ -978,25 +985,38 @@ func dedupStrings(in []string) []string {
 	return result
 }
 
-// indexCatalog sets the catalog in the CreateIndex and DropIndex nodes.
-func indexCatalog(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
-	if !n.Resolved() {
-		return n, nil
-	}
+// assignCatalog sets the catalog in the nodes that require it.
+func assignCatalog(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
+	a.Log("assign catalog, node of type: %T", n)
 
-	span, ctx := ctx.Span("index_catalog")
+	span, ctx := ctx.Span("assign_catalog")
 	defer span.Finish()
 
 	switch node := n.(type) {
 	case *plan.CreateIndex:
+		if !n.Resolved() {
+			return node, nil
+		}
+
+		a.Log("assign catalog to %T", node)
 		nc := *node
 		nc.Catalog = a.Catalog
 		nc.CurrentDatabase = a.CurrentDatabase
 		return &nc, nil
 	case *plan.DropIndex:
+		if !n.Resolved() {
+			return node, nil
+		}
+
+		a.Log("assign catalog to %T", node)
 		nc := *node
 		nc.Catalog = a.Catalog
 		nc.CurrentDatabase = a.CurrentDatabase
+		return &nc, nil
+	case *plan.ShowDatabases:
+		a.Log("assign catalog to %T", node)
+		nc := *node
+		nc.Catalog = a.Catalog
 		return &nc, nil
 	default:
 		return n, nil
