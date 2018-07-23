@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"gopkg.in/src-d/go-errors.v1"
+	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
 var (
@@ -193,6 +194,27 @@ type PushdownProjectionAndFiltersTable interface {
 type Inserter interface {
 	// Insert the given row.
 	Insert(row Row) error
+}
+
+// Transactioner is a node that can perform transactions.
+type Transactioner interface {
+	// Transaction starts a transaction.
+	Transaction(ctx *sql.Context) (Transaction, error)
+}
+
+// Transaction performs operations over several rows that will only get
+// committed if all succeed.
+type Transaction interface {
+	// Commit the operations to make changes permanent.
+	Commit(ctx *sql.Context) error
+	// Rollback the operations to revert them.
+	Rollback(ctx *sql.Context) error
+}
+
+// Updater allows rows to be updated.
+type Updater interface {
+	// Update performs the given updates to the rows matching the given filter.
+	Update(ctx *Context, Transaction, prev, updated Row) error
 }
 
 // Database represents the database.

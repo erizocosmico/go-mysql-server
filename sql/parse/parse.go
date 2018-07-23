@@ -84,6 +84,8 @@ func convert(ctx *sql.Context, stmt sqlparser.Statement, query string) (sql.Node
 		return convertSelect(ctx, n)
 	case *sqlparser.Insert:
 		return convertInsert(ctx, n)
+	case *sqlparser.Update:
+		return convertUpdate(ctx, n)
 	case *sqlparser.DDL:
 		return convertDDL(n)
 	}
@@ -189,6 +191,50 @@ func convertInsert(ctx *sql.Context, i *sqlparser.Insert) (sql.Node, error) {
 		src,
 		columnsToStrings(i.Columns),
 	), nil
+}
+
+func convertUpdate(ctx *sql.Context, u *sqlparser.Update) (sql.Node, error) {
+	node, err := tableExprsToTable(ctx, u.TableExprs)
+	if err != nil {
+		return nil, err
+	}
+
+	table, ok := node.(*plan.UnresolvedTable)
+	if !ok {
+		return nil, ErrUnsupportedFeature.New("multiple tables on UPDATE")
+	}
+
+	var exprs = make([]plan.UpdateExpr, len(u.Exprs))
+	for i, expr := range u.Exprs {
+		exprs[i].Column = expr.Name.Name.String()
+		exprs[i].Value, err = exprToExpression(expr.Expr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if len(u.OrderBy) != 0 {
+		node, err = orderByToSort(u.OrderBy, node)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if u.Limit != nil {
+		node, err = limitToLimit(ctx, u.Limit.Rowcount, node)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if u.Limit != nil && u.Limit.Offset != nil {
+		node, err = offsetToOffset(ctx, u.Limit.Offset, node)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return plan.NewUpdate(exprs, child), nil
 }
 
 func columnDefinitionToSchema(colDef []*sqlparser.ColumnDefinition) (sql.Schema, error) {
