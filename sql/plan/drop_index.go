@@ -39,6 +39,19 @@ func (d *DropIndex) Schema() sql.Schema { return nil }
 // Children implements the Node interface.
 func (d *DropIndex) Children() []sql.Node { return []sql.Node{d.Table} }
 
+func getTableName(node sql.Node) (string, error) {
+	if IsUnary(node) {
+		return getTableName(node.Children()[0])
+	}
+
+	n, ok := node.(sql.Nameable)
+	if !ok {
+		return "", ErrTableNotNameable.New()
+	}
+
+	return n.Name(), nil
+}
+
 // RowIter implements the Node interface.
 func (d *DropIndex) RowIter(ctx *sql.Context) (sql.RowIter, error) {
 	db, err := d.Catalog.Database(d.CurrentDatabase)
@@ -46,19 +59,19 @@ func (d *DropIndex) RowIter(ctx *sql.Context) (sql.RowIter, error) {
 		return nil, err
 	}
 
-	n, ok := d.Table.(sql.Nameable)
-	if !ok {
-		return nil, ErrTableNotNameable.New()
+	tableName, err := getTableName(d.Table)
+	if err != nil {
+		return nil, err
 	}
 
-	table, ok := db.Tables()[n.Name()]
+	table, ok := db.Tables()[tableName]
 	if !ok {
-		return nil, sql.ErrTableNotFound.New(n.Name())
+		return nil, sql.ErrTableNotFound.New(tableName)
 	}
 
 	index := d.Catalog.Index(db.Name(), d.Name)
 	if index == nil {
-		return nil, ErrIndexNotFound.New(d.Name, n.Name(), db.Name())
+		return nil, ErrIndexNotFound.New(d.Name, table.Name(), db.Name())
 	}
 	d.Catalog.ReleaseIndex(index)
 
