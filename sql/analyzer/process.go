@@ -47,13 +47,16 @@ func trackProcess(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
 			notify := func() {
 				processList.UpdateProgress(ctx.Pid(), name, 1)
 			}
+			reset := func() {
+				processList.ResetProgress(ctx.Pid(), name)
+			}
 
 			var t sql.Table
 			switch table := n.Table.(type) {
 			case sql.IndexableTable:
-				t = plan.NewProcessIndexableTable(table, notify)
+				t = plan.NewProcessIndexableTable(table, notify, reset)
 			default:
-				t = plan.NewProcessTable(table, notify)
+				t = plan.NewProcessTable(table, notify, reset)
 			}
 
 			return plan.NewResolvedTable(t), nil

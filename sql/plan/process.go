@@ -13,6 +13,9 @@ type QueryProcess struct {
 	Notify NotifyFunc
 }
 
+// ResetFunc is a function to reset a process progress.
+type ResetFunc func()
+
 // NotifyFunc is a function to notify about some event.
 type NotifyFunc func()
 
@@ -64,11 +67,16 @@ func (p *QueryProcess) String() string { return p.Child.String() }
 type ProcessIndexableTable struct {
 	sql.IndexableTable
 	Notify NotifyFunc
+	Reset  ResetFunc
 }
 
 // NewProcessIndexableTable returns a new ProcessIndexableTable.
-func NewProcessIndexableTable(t sql.IndexableTable, notify NotifyFunc) *ProcessIndexableTable {
-	return &ProcessIndexableTable{t, notify}
+func NewProcessIndexableTable(
+	t sql.IndexableTable,
+	notify NotifyFunc,
+	reset ResetFunc,
+) *ProcessIndexableTable {
+	return &ProcessIndexableTable{t, notify, reset}
 }
 
 // Underlying implements sql.TableWrapper interface.
@@ -89,6 +97,12 @@ func (t *ProcessIndexableTable) IndexKeyValues(
 	return &trackedPartitionIndexKeyValueIter{iter, t.Notify}, nil
 }
 
+// Partitions implements the sql.Table interface.
+func (t *ProcessIndexableTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
+	t.Reset()
+	return t.IndexableTable.Partitions(ctx)
+}
+
 // PartitionRows implements the sql.Table interface.
 func (t *ProcessIndexableTable) PartitionRows(ctx *sql.Context, p sql.Partition) (sql.RowIter, error) {
 	iter, err := t.IndexableTable.PartitionRows(ctx, p)
@@ -107,16 +121,27 @@ var _ sql.IndexableTable = (*ProcessIndexableTable)(nil)
 type ProcessTable struct {
 	sql.Table
 	Notify NotifyFunc
+	Reset  ResetFunc
 }
 
 // NewProcessTable returns a new ProcessTable.
-func NewProcessTable(t sql.Table, notify NotifyFunc) *ProcessTable {
-	return &ProcessTable{t, notify}
+func NewProcessTable(
+	t sql.Table,
+	notify NotifyFunc,
+	reset ResetFunc,
+) *ProcessTable {
+	return &ProcessTable{t, notify, reset}
 }
 
 // Underlying implements sql.TableWrapper interface.
 func (t *ProcessTable) Underlying() sql.Table {
 	return t.Table
+}
+
+// Partitions implements the sql.Table interface.
+func (t *ProcessTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
+	t.Reset()
+	return t.Table.Partitions(ctx)
 }
 
 // PartitionRows implements the sql.Table interface.

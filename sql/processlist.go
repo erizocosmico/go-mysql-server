@@ -136,6 +136,26 @@ func (pl *ProcessList) UpdateProgress(pid uint64, name string, delta int64) {
 	p.Progress[name] = progress
 }
 
+// ResetProgress resets the progress of the item with the given name for the
+// process with the given pid.
+func (pl *ProcessList) ResetProgress(pid uint64, name string) {
+	pl.mu.Lock()
+	defer pl.mu.Unlock()
+
+	p, ok := pl.procs[pid]
+	if !ok {
+		return
+	}
+
+	progress, ok := p.Progress[name]
+	if !ok {
+		progress = Progress{Total: -1}
+	}
+
+	progress.Done = 0
+	p.Progress[name] = progress
+}
+
 // AddProgressItem adds a new item to track progress from to the process with
 // the given pid. If the pid does not exist, it will do nothing.
 func (pl *ProcessList) AddProgressItem(pid uint64, name string, total int64) {

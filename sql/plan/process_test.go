@@ -61,7 +61,7 @@ func TestProcessTable(t *testing.T) {
 	table.Insert(sql.NewEmptyContext(), sql.NewRow(int64(3)))
 	table.Insert(sql.NewEmptyContext(), sql.NewRow(int64(4)))
 
-	var notifications int
+	var notifications, resets int
 
 	node := NewProject(
 		[]sql.Expression{
@@ -72,6 +72,9 @@ func TestProcessTable(t *testing.T) {
 				table,
 				func() {
 					notifications++
+				},
+				func() {
+					resets++
 				},
 			),
 		),
@@ -92,6 +95,7 @@ func TestProcessTable(t *testing.T) {
 
 	require.ElementsMatch(expected, rows)
 	require.Equal(2, notifications)
+	require.Equal(1, resets)
 }
 
 func TestProcessIndexableTable(t *testing.T) {
@@ -106,12 +110,15 @@ func TestProcessIndexableTable(t *testing.T) {
 	table.Insert(sql.NewEmptyContext(), sql.NewRow(int64(3)))
 	table.Insert(sql.NewEmptyContext(), sql.NewRow(int64(4)))
 
-	var notifications int
+	var notifications, resets int
 
 	pt := NewProcessIndexableTable(
 		table,
 		func() {
 			notifications++
+		},
+		func() {
+			resets++
 		},
 	)
 
@@ -145,4 +152,9 @@ func TestProcessIndexableTable(t *testing.T) {
 
 	require.ElementsMatch(expectedValues, values)
 	require.Equal(2, notifications)
+	require.Equal(0, resets)
+
+	_, err = pt.Partitions(sql.NewEmptyContext())
+	require.NoError(err)
+	require.Equal(1, resets)
 }
