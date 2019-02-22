@@ -83,6 +83,10 @@ func isParallelizable(node sql.Node) bool {
 		case sql.Table:
 			lastWasTable = true
 			tableSeen = true
+		case *plan.SubqueryAlias:
+			lastWasTable = true
+			tableSeen = true
+			return false
 		default:
 			ok = false
 			return false

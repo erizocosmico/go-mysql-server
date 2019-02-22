@@ -226,3 +226,55 @@ func TestRemoveRedundantExchanges(t *testing.T) {
 	require.NoError(err)
 	require.Equal(expected, result)
 }
+
+func TestParallelizeSubquery(t *testing.T) {
+	require := require.New(t)
+	table := mem.NewTable("t", nil)
+	rule := getRuleFrom(OnceAfterAll, "parallelize")
+	node := plan.NewProject(
+		[]sql.Expression{
+			expression.NewLiteral(1, sql.Int64),
+		},
+		plan.NewSubqueryAlias("sub", plan.NewProject(
+			nil,
+			plan.NewInnerJoin(
+				plan.NewFilter(
+					expression.NewLiteral(1, sql.Int64),
+					plan.NewResolvedTable(table),
+				),
+				plan.NewFilter(
+					expression.NewLiteral(1, sql.Int64),
+					plan.NewResolvedTable(table),
+				),
+				expression.NewLiteral(1, sql.Int64),
+			),
+		)),
+	)
+
+	expected := plan.NewExchange(
+		2,
+		plan.NewProject(
+			[]sql.Expression{
+				expression.NewLiteral(1, sql.Int64),
+			},
+			plan.NewSubqueryAlias("sub", plan.NewProject(
+				nil,
+				plan.NewInnerJoin(
+					plan.NewFilter(
+						expression.NewLiteral(1, sql.Int64),
+						plan.NewResolvedTable(table),
+					),
+					plan.NewFilter(
+						expression.NewLiteral(1, sql.Int64),
+						plan.NewResolvedTable(table),
+					),
+					expression.NewLiteral(1, sql.Int64),
+				),
+			)),
+		),
+	)
+
+	result, err := rule.Apply(sql.NewEmptyContext(), &Analyzer{Parallelism: 2}, node)
+	require.NoError(err)
+	require.Equal(expected, result)
+}
