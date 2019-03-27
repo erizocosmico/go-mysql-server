@@ -1,7 +1,10 @@
 package plan
 
 import (
+	"context"
+	"io"
 	"strings"
+	"sync"
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -12,6 +15,7 @@ type Project struct {
 	UnaryNode
 	// Expression projected.
 	Projections []sql.Expression
+	Parallelism int
 }
 
 // NewProject creates a new projection.
@@ -20,6 +24,12 @@ func NewProject(expressions []sql.Expression, child sql.Node) *Project {
 		UnaryNode:   UnaryNode{child},
 		Projections: expressions,
 	}
+}
+
+// SetParallelism sets the maximum number of goroutines to use to process
+// this projection in parallel.
+func (p *Project) SetParallelism(parallelism int) {
+	p.Parallelism = parallelism
 }
 
 // Schema implements the Node interface.
@@ -56,17 +66,32 @@ func (p *Project) Resolved() bool {
 
 // RowIter implements the Node interface.
 func (p *Project) RowIter(ctx *sql.Context) (sql.RowIter, error) {
-	span, ctx := ctx.Span("plan.Project", opentracing.Tag{
-		Key:   "projections",
-		Value: len(p.Projections),
-	})
+	span, ctx := ctx.Span(
+		"plan.Project",
+		opentracing.Tag{
+			Key:   "projections",
+			Value: len(p.Projections),
+		},
+		opentracing.Tag{
+			Key:   "parallelism",
+			Value: p.Parallelism,
+		},
+	)
 
 	i, err := p.Child.RowIter(ctx)
 	if err != nil {
 		span.Finish()
 		return nil, err
 	}
-	return sql.NewSpanIter(span, &iter{p, i, ctx}), nil
+
+	var childIter sql.RowIter
+	if p.Parallelism >= 1 {
+		childIter = newParallelIter(p.Projections, i, ctx, p.Parallelism)
+	} else {
+		childIter = &iter{p.Projections, i, ctx}
+	}
+
+	return sql.NewSpanIter(span, childIter), nil
 }
 
 // TransformUp implements the Transformable interface.
@@ -75,7 +100,10 @@ func (p *Project) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	return f(NewProject(p.Projections, child))
+
+	np := NewProject(p.Projections, child)
+	np.Parallelism = p.Parallelism
+	return f(np)
 }
 
 // TransformExpressionsUp implements the Transformable interface.
@@ -90,7 +118,9 @@ func (p *Project) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, err
 		return nil, err
 	}
 
-	return NewProject(exprs, child), nil
+	np := NewProject(exprs, child)
+	np.Parallelism = p.Parallelism
+	return np, nil
 }
 
 func (p *Project) String() string {
@@ -99,7 +129,17 @@ func (p *Project) String() string {
 	for i, expr := range p.Projections {
 		exprs[i] = expr.String()
 	}
-	_ = pr.WriteNode("Project(%s)", strings.Join(exprs, ", "))
+
+	if p.Parallelism <= 1 {
+		_ = pr.WriteNode("Project(%s)", strings.Join(exprs, ", "))
+	} else {
+		_ = pr.WriteNode(
+			"Project(%s, parallelism=%d)",
+			strings.Join(exprs, ", "),
+			p.Parallelism,
+		)
+	}
+
 	_ = pr.WriteChildren(p.Child.String())
 	return pr.String()
 }
@@ -120,30 +160,155 @@ func (p *Project) TransformExpressions(f sql.TransformExprFunc) (sql.Node, error
 }
 
 type iter struct {
-	p         *Project
-	childIter sql.RowIter
-	ctx       *sql.Context
+	projections []sql.Expression
+	child       sql.RowIter
+	ctx         *sql.Context
 }
 
 func (i *iter) Next() (sql.Row, error) {
-	childRow, err := i.childIter.Next()
+	row, err := i.child.Next()
 	if err != nil {
 		return nil, err
 	}
-	return filterRow(i.ctx, i.p.Projections, childRow)
+	return project(i.ctx, i.projections, row)
 }
 
 func (i *iter) Close() error {
-	return i.childIter.Close()
+	return i.child.Close()
 }
 
-func filterRow(
+type parallelIter struct {
+	projections []sql.Expression
+	child       sql.RowIter
+	ctx         *sql.Context
+	parallelism int
+
+	cancel context.CancelFunc
+	rows   chan sql.Row
+	errors chan error
+	done   bool
+
+	mut      sync.Mutex
+	finished bool
+}
+
+func newParallelIter(
+	projections []sql.Expression,
+	child sql.RowIter,
+	ctx *sql.Context,
+	parallelism int,
+) *parallelIter {
+	var cancel context.CancelFunc
+	ctx.Context, cancel = context.WithCancel(ctx.Context)
+
+	return &parallelIter{
+		projections: projections,
+		child:       child,
+		ctx:         ctx,
+		parallelism: parallelism,
+		cancel:      cancel,
+		errors:      make(chan error, parallelism),
+	}
+}
+
+func (i *parallelIter) Next() (sql.Row, error) {
+	if i.done {
+		return nil, io.EOF
+	}
+
+	if i.rows == nil {
+		i.rows = make(chan sql.Row, i.parallelism)
+		go i.start()
+	}
+
+	select {
+	case row, ok := <-i.rows:
+		if !ok {
+			i.close()
+			return nil, io.EOF
+		}
+		return row, nil
+	case err := <-i.errors:
+		i.close()
+		return nil, err
+	}
+}
+
+func (i *parallelIter) nextRow() (sql.Row, bool) {
+	i.mut.Lock()
+	defer i.mut.Unlock()
+
+	if i.finished {
+		return nil, true
+	}
+
+	row, err := i.child.Next()
+	if err != nil {
+		if err == io.EOF {
+			i.finished = true
+		} else {
+			i.errors <- err
+		}
+		return nil, true
+	}
+
+	return row, false
+}
+
+func (i *parallelIter) start() {
+	var wg sync.WaitGroup
+	wg.Add(i.parallelism)
+	for j := 0; j < i.parallelism; j++ {
+		go func() {
+			defer wg.Done()
+
+			for {
+				select {
+				case <-i.ctx.Done():
+					i.errors <- context.Canceled
+					return
+				default:
+				}
+
+				row, stop := i.nextRow()
+				if stop {
+					return
+				}
+
+				row, err := project(i.ctx, i.projections, row)
+				if err != nil {
+					i.errors <- err
+					return
+				}
+
+				i.rows <- row
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(i.rows)
+}
+
+func (i *parallelIter) close() {
+	if !i.done {
+		i.cancel()
+		i.done = true
+	}
+}
+
+func (i *parallelIter) Close() error {
+	i.close()
+	return i.child.Close()
+}
+
+func project(
 	s *sql.Context,
-	expressions []sql.Expression,
+	projections []sql.Expression,
 	row sql.Row,
 ) (sql.Row, error) {
 	var fields []interface{}
-	for _, expr := range expressions {
+	for _, expr := range projections {
 		f, err := expr.Eval(s, row)
 		if err != nil {
 			return nil, err
