@@ -409,6 +409,11 @@ var TimestampLayouts = []string{
 	"20060102",
 }
 
+var (
+	maxTimestamp = time.Date(9999, time.December, 31, 23, 59, 59, 0, time.UTC)
+	minTimestamp = time.Date(1000, time.January, 1, 0, 0, 0, 0, time.UTC)
+)
+
 // SQL implements Type interface.
 func (t timestampT) SQL(v interface{}) sqltypes.Value {
 	if _, ok := v.(nullT); ok {
@@ -422,11 +427,25 @@ func (t timestampT) SQL(v interface{}) sqltypes.Value {
 	)
 }
 
+// ToSupportedTimeRange returns the time if it's within the supported datetime
+// range or either the lower or upper bound.
+func ToSupportedTimeRange(t time.Time) time.Time {
+	if t.Before(minTimestamp) {
+		return minTimestamp
+	}
+
+	if t.After(maxTimestamp) {
+		return maxTimestamp
+	}
+
+	return t
+}
+
 // Convert implements Type interface.
 func (t timestampT) Convert(v interface{}) (interface{}, error) {
 	switch value := v.(type) {
 	case time.Time:
-		return value.UTC(), nil
+		return ToSupportedTimeRange(value.UTC()), nil
 	case string:
 		t, err := time.Parse(TimestampLayout, value)
 		if err != nil {
@@ -443,14 +462,14 @@ func (t timestampT) Convert(v interface{}) (interface{}, error) {
 				return nil, ErrConvertingToTime.Wrap(err, v)
 			}
 		}
-		return t.UTC(), nil
+		return ToSupportedTimeRange(t.UTC()), nil
 	default:
 		ts, err := Int64.Convert(v)
 		if err != nil {
 			return nil, ErrInvalidType.New(reflect.TypeOf(v))
 		}
 
-		return time.Unix(ts.(int64), 0).UTC(), nil
+		return ToSupportedTimeRange(time.Unix(ts.(int64), 0).UTC()), nil
 	}
 }
 
@@ -497,20 +516,21 @@ func (t dateT) SQL(v interface{}) sqltypes.Value {
 func (t dateT) Convert(v interface{}) (interface{}, error) {
 	switch value := v.(type) {
 	case time.Time:
-		return truncateDate(value).UTC(), nil
+		return truncateDate(ToSupportedTimeRange(value.UTC())), nil
 	case string:
 		t, err := time.Parse(DateLayout, value)
 		if err != nil {
 			return nil, ErrConvertingToTime.Wrap(err, v)
 		}
-		return truncateDate(t).UTC(), nil
+		return truncateDate(ToSupportedTimeRange(t.UTC())), nil
 	default:
 		ts, err := Int64.Convert(v)
 		if err != nil {
 			return nil, ErrInvalidType.New(reflect.TypeOf(v))
 		}
 
-		return truncateDate(time.Unix(ts.(int64), 0)).UTC(), nil
+		t := time.Unix(ts.(int64), 0)
+		return truncateDate(ToSupportedTimeRange(t.UTC())), nil
 	}
 }
 

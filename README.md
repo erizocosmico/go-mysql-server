@@ -257,6 +257,7 @@ To be able to create your own data source implementation you need to implement t
   - `sql.PushdownProjectionAndFiltersTable` interface will provide the same functionality described before, but also will push down the filters used in the executed query. It allows to filter data in advance, and speed up queries.
   - `sql.Indexable` add index capabilities to your table. By implementing this interface you can create and use indexes on this table.
   - `sql.Inserter` can be implemented if your data source tables allow insertions.
+**IMPORTANT:** when you implement your tables, your columns of timestamp and datetime types **must** return dates in the following range: `1000-01-01 00:00:00` to `9999-12-31 23:59:59`. To do so, you can use the builtin function `sql.ToSupportedTimeRange`.
 
 - If you need some custom tree modifications, you can also implement your own `analyzer.Rules`.
 
