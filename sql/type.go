@@ -985,6 +985,120 @@ func (t arrayT) Compare(a, b interface{}) (int, error) {
 	return 0, nil
 }
 
+type structT struct {
+	schema Schema
+}
+
+// Struct creates a new struct type with the given schema.
+func Struct(schema Schema) Type {
+	return structT{schema}
+}
+
+func (t structT) String() string {
+	var fields = make([]string, len(t.schema))
+	for i, c := range t.schema {
+		fields[i] = fmt.Sprintf("%s %s", c.Name, c.Type)
+	}
+	return fmt.Sprintf("STRUCT(%s)", strings.Join(fields, ", "))
+}
+
+func (t structT) Type() query.Type {
+	return sqltypes.TypeJSON
+}
+
+func (t structT) SQL(v interface{}) (sqltypes.Value, error) {
+	if _, ok := v.(nullT); ok {
+		return sqltypes.NULL, nil
+	}
+
+	v, err := t.Convert(v)
+	if err != nil {
+		return sqltypes.Value{}, err
+	}
+
+	return JSON.SQL(v)
+}
+
+var (
+	errNotValidStruct    = errors.NewKind("can't convert struct because the schema does not match")
+	errCantConvertStruct = errors.NewKind("can't convert struct: %s")
+)
+
+func (t structT) Convert(v interface{}) (interface{}, error) {
+	var m = make(map[string]interface{})
+	switch v := v.(type) {
+	case map[string]interface{}:
+		m = v
+	case string:
+		if err := json.Unmarshal([]byte(v), &m); err != nil {
+			return nil, errCantConvertStruct.New(err)
+		}
+	case []byte:
+		if err := json.Unmarshal(v, &m); err != nil {
+			return nil, errCantConvertStruct.New(err)
+		}
+	default:
+		bs, err := json.Marshal(v)
+		if err != nil {
+			return nil, errCantConvertStruct.New(err)
+		}
+
+		if err := json.Unmarshal(bs, &m); err != nil {
+			return nil, errCantConvertStruct.New(err)
+		}
+	}
+
+	var result = make(map[string]interface{})
+	for _, col := range t.schema {
+		val, ok := m[col.Name]
+		if !ok {
+			if !col.Nullable {
+				return nil, errNotValidStruct.New()
+			}
+			result[col.Name] = col.Default
+			continue
+		}
+
+		val, err := col.Type.Convert(val)
+		if err != nil {
+			return nil, errCantConvertStruct.New(err)
+		}
+
+		result[col.Name] = val
+	}
+
+	return result, nil
+}
+
+func (t structT) Compare(a, b interface{}) (int, error) {
+	a, err := t.Convert(a)
+	if err != nil {
+		return 0, err
+	}
+
+	b, err = t.Convert(b)
+	if err != nil {
+		return 0, err
+	}
+
+	left := a.(map[string]interface{})
+	right := b.(map[string]interface{})
+
+	for k := range left {
+		n := t.schema.IndexOf(k, "")
+		cmp, err := t.schema[n].Type.Compare(left[k], right[k])
+		if err != nil {
+			return 0, err
+		}
+
+		if cmp != 0 {
+			return cmp, nil
+		}
+	}
+
+	return 0, nil
+}
+
 // IsNumber checks if t is a number type
 func IsNumber(t Type) bool {
 	return IsInteger(t) || IsDecimal(t)
@@ -1040,6 +1154,12 @@ func IsArray(t Type) bool {
 	return ok
 }
 
+// IsStruct returns whether the given type is a struct.
+func IsStruct(t Type) bool {
+	_, ok := t.(structT)
+	return ok
+}
+
 // NumColumns returns the number of columns in a type. This is one for all
 // types, except tuples.
 func NumColumns(t Type) int {
@@ -1048,6 +1168,20 @@ func NumColumns(t Type) int {
 		return 1
 	}
 	return len(v)
+}
+
+// Field returns the field with the given name of the given type if it's a
+// struct. If it's not found or it's not a struct, it will return nil.
+func Field(t Type, name string) *Column {
+	if t, ok := t.(structT); ok {
+		for _, col := range t.schema {
+			if strings.ToLower(name) == strings.ToLower(col.Name) {
+				return col
+			}
+		}
+	}
+
+	return nil
 }
 
 // MySQLTypeName returns the MySQL display name for the given type.

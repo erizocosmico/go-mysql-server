@@ -779,6 +779,20 @@ func exprToExpression(e sqlparser.Expr) (sql.Expression, error) {
 		return expression.NewLiteral(nil, sql.Null), nil
 	case *sqlparser.ColName:
 		if !v.Qualifier.IsEmpty() {
+			// If we find something of the form A.B.C we're going to treat it
+			// as a struct field access.
+			// TODO: this should be handled better when GetFields support being
+			// qualified with the database.
+			if !v.Qualifier.Qualifier.IsEmpty() {
+				return expression.NewUnresolvedField(
+					expression.NewUnresolvedQualifiedColumn(
+						v.Qualifier.Qualifier.String(),
+						v.Qualifier.Name.String(),
+					),
+					v.Name.String(),
+				), nil
+			}
+
 			return expression.NewUnresolvedQualifiedColumn(
 				v.Qualifier.Name.String(),
 				v.Name.String(),

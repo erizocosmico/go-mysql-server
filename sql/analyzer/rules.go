@@ -12,6 +12,7 @@ var DefaultRules = []Rule{
 	{"resolve_grouping_columns", resolveGroupingColumns},
 	{"qualify_columns", qualifyColumns},
 	{"resolve_columns", resolveColumns},
+	{"resolve_struct_fields", resolveStructFields},
 	{"resolve_database", resolveDatabase},
 	{"resolve_star", resolveStar},
 	{"resolve_functions", resolveFunctions},

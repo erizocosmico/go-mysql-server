@@ -133,3 +133,73 @@ func (f *GetSessionField) WithChildren(children ...sql.Expression) (sql.Expressi
 	}
 	return f, nil
 }
+
+// GetStructField is an expression to get a field from a struct column.
+type GetStructField struct {
+	Struct sql.Expression
+	Name   string
+}
+
+// NewGetStructField creates a new GetStructField expression.
+func NewGetStructField(s sql.Expression, fieldName string) *GetStructField {
+	return &GetStructField{s, fieldName}
+}
+
+// Children implements the Expression interface.
+func (p *GetStructField) Children() []sql.Expression {
+	return []sql.Expression{p.Struct}
+}
+
+// Resolved implements the Expression interface.
+func (p *GetStructField) Resolved() bool {
+	return p.Struct.Resolved()
+}
+
+func (p *GetStructField) column() *sql.Column {
+	return sql.Field(p.Struct.Type(), p.Name)
+}
+
+// IsNullable returns whether the field is nullable or not.
+func (p *GetStructField) IsNullable() bool {
+	return p.Struct.IsNullable() || p.column().Nullable
+}
+
+// Type returns the type of the field.
+func (p *GetStructField) Type() sql.Type {
+	return p.column().Type
+}
+
+// Eval implements the Expression interface.
+func (p *GetStructField) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	s, err := p.Struct.Eval(ctx, row)
+	if err != nil {
+		return nil, err
+	}
+
+	if s == nil {
+		return nil, nil
+	}
+
+	s, err = p.Struct.Type().Convert(s)
+	if err != nil {
+		return nil, err
+	}
+
+	if val, ok := s.(map[string]interface{})[p.Name]; ok {
+		return p.Type().Convert(val)
+	}
+
+	return nil, nil
+}
+
+// WithChildren implements the Expression interface.
+func (p *GetStructField) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	if len(children) != 1 {
+		return nil, sql.ErrInvalidChildrenNumber.New(p, len(children), 1)
+	}
+	return &GetStructField{children[0], p.Name}, nil
+}
+
+func (p *GetStructField) String() string {
+	return fmt.Sprintf("%s.%s", p.Struct, p.Name)
+}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-errors.v1"
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/proto/query"
 )
@@ -401,7 +402,7 @@ func TestUnderlyingType(t *testing.T) {
 	require.Equal(t, Text, UnderlyingType(Text))
 }
 
-type testJSONStruct struct {
+type testStruct struct {
 	A int
 	B string
 }
@@ -409,12 +410,77 @@ type testJSONStruct struct {
 func TestJSONArraySQL(t *testing.T) {
 	require := require.New(t)
 	val, err := Array(JSON).SQL([]interface{}{
-		testJSONStruct{1, "foo"},
-		testJSONStruct{2, "bar"},
+		testStruct{1, "foo"},
+		testStruct{2, "bar"},
 	})
 	require.NoError(err)
 	expected := `[{"A":1,"B":"foo"},{"A":2,"B":"bar"}]`
 	require.Equal(expected, string(val.Raw()))
+}
+
+func TestStruct(t *testing.T) {
+	require := require.New(t)
+	s := Struct(Schema{
+		{Name: "A", Type: Int64, Nullable: false},
+		{Name: "B", Type: Text, Nullable: true, Default: "default"},
+	})
+
+	testCases := []struct {
+		name     string
+		input    interface{}
+		err      *errors.Kind
+		expected interface{}
+	}{
+		{
+			"struct input",
+			testStruct{A: 1, B: "bar"},
+			nil,
+			map[string]interface{}{"A": int64(1), "B": "bar"},
+		},
+		{
+			"map input",
+			map[string]interface{}{"A": 1, "B": "bar"},
+			nil,
+			map[string]interface{}{"A": int64(1), "B": "bar"},
+		},
+		{
+			"bytes input",
+			[]byte(`{"A": 1, "B": "bar"}`),
+			nil,
+			map[string]interface{}{"A": int64(1), "B": "bar"},
+		},
+		{
+			"string input",
+			`{"A": 1, "B": "bar"}`,
+			nil,
+			map[string]interface{}{"A": int64(1), "B": "bar"},
+		},
+		{
+			"not nullable field not present",
+			`{"B": "bar"}`,
+			errNotValidStruct,
+			nil,
+		},
+		{
+			"nullable field not present with default",
+			`{"A": 1}`,
+			nil,
+			map[string]interface{}{"A": int64(1), "B": "default"},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := s.Convert(tt.input)
+			if tt.err != nil {
+				require.Error(err)
+				require.True(tt.err.Is(err))
+			} else {
+				require.NoError(err)
+				require.Equal(tt.expected, result)
+			}
+		})
+	}
 }
 
 func eq(t *testing.T, typ Type, a, b interface{}) {

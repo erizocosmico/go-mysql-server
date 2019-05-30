@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/src-d/go-mysql-server/internal/similartext"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
 	"github.com/src-d/go-mysql-server/sql/plan"
@@ -153,17 +152,24 @@ func qualifyExpression(
 			return col, nil
 		}
 
-		name, table := strings.ToLower(col.Name()), strings.ToLower(col.Table())
+		name, tableName := strings.ToLower(col.Name()), strings.ToLower(col.Table())
 		availableTables := dedupStrings(columns[name])
-		if table != "" {
-			table, ok := tables[table]
+		if tableName != "" {
+			table, ok := tables[tableName]
 			if !ok {
-				if len(tables) == 0 {
-					return nil, sql.ErrTableNotFound.New(col.Table())
+				// If the table does not exist but the column does, it may be a
+				// struct field access.
+				if columnExists(columns, tableName) {
+					return expression.NewUnresolvedField(
+						expression.NewUnresolvedColumn(col.Table()),
+						col.Name(),
+					), nil
 				}
 
-				similar := similartext.FindFromMap(tables, col.Table())
-				return nil, sql.ErrTableNotFound.New(col.Table() + similar)
+				// If it cannot be resolved, then pass along and let it fail
+				// somewhere else. Maybe we're missing some steps before this
+				// can be resolved.
+				return col, nil
 			}
 
 			// If the table exists but it's not available for this node it
@@ -211,6 +217,15 @@ func qualifyExpression(
 			return e, nil
 		})
 	}
+}
+
+func columnExists(columns map[string][]string, col string) bool {
+	for c := range columns {
+		if strings.ToLower(c) == strings.ToLower(col) {
+			return true
+		}
+	}
+	return false
 }
 
 func getNodeAvailableColumns(n sql.Node) map[string][]string {
@@ -374,7 +389,23 @@ func resolveColumnExpression(
 			return &deferredColumn{uc}, nil
 		default:
 			if table != "" {
-				return nil, ErrColumnTableNotFound.New(e.Table(), e.Name())
+				if isStructField(uc, columns) {
+					return expression.NewUnresolvedField(
+						expression.NewUnresolvedColumn(uc.Table()),
+						uc.Name(),
+					), nil
+				}
+
+				// If we manage to find any column with the given table, it's because
+				// the column does not exist.
+				for col := range columns {
+					if col.table == table {
+						return nil, ErrColumnTableNotFound.New(e.Table(), e.Name())
+					}
+				}
+
+				// In any other case, it's the table the one that does not exist.
+				return nil, sql.ErrTableNotFound.New(e.Table())
 			}
 
 			return nil, ErrColumnNotFound.New(e.Name())
@@ -388,6 +419,51 @@ func resolveColumnExpression(
 		col.Name,
 		col.Nullable,
 	), nil
+}
+
+func isStructField(c column, columns map[tableCol]indexedCol) bool {
+	for _, col := range columns {
+		if strings.ToLower(c.Table()) == strings.ToLower(col.Name) &&
+			sql.Field(col.Type, c.Name()) != nil {
+			return true
+		}
+	}
+	return false
+}
+
+var errFieldNotFound = errors.NewKind("field %s not found on struct %s")
+
+func resolveStructFields(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
+	span, _ := ctx.Span("resolve_struct_fields")
+	defer span.Finish()
+
+	return plan.TransformUp(n, func(n sql.Node) (sql.Node, error) {
+		if n.Resolved() {
+			return n, nil
+		}
+
+		if _, ok := n.(sql.Expressioner); !ok {
+			return n, nil
+		}
+
+		return plan.TransformExpressions(n, func(e sql.Expression) (sql.Expression, error) {
+			f, ok := e.(*expression.UnresolvedField)
+			if !ok {
+				return e, nil
+			}
+
+			if !f.Struct.Resolved() {
+				return e, nil
+			}
+
+			field := sql.Field(f.Struct.Type(), f.Name)
+			if field == nil {
+				return nil, errFieldNotFound.New(f.Name, f.Struct)
+			}
+
+			return expression.NewGetStructField(f.Struct, f.Name), nil
+		})
+	})
 }
 
 // resolveGroupingColumns reorders the aggregation in a groupby so aliases

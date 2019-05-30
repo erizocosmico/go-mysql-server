@@ -135,3 +135,51 @@ func (uf *UnresolvedFunction) WithChildren(children ...sql.Expression) (sql.Expr
 	}
 	return NewUnresolvedFunction(uf.name, uf.IsAggregate, children...), nil
 }
+
+// UnresolvedField is an unresolved expression to get a field from a struct column.
+type UnresolvedField struct {
+	Struct sql.Expression
+	Name   string
+}
+
+// NewUnresolvedField creates a new UnresolvedField expression.
+func NewUnresolvedField(s sql.Expression, fieldName string) *UnresolvedField {
+	return &UnresolvedField{s, fieldName}
+}
+
+// Children implements the Expression interface.
+func (p *UnresolvedField) Children() []sql.Expression {
+	return []sql.Expression{p.Struct}
+}
+
+// Resolved implements the Expression interface.
+func (p *UnresolvedField) Resolved() bool {
+	return false
+}
+
+// IsNullable returns whether the field is nullable or not.
+func (p *UnresolvedField) IsNullable() bool {
+	panic("unresolved field is a placeholder node, but IsNullable was called")
+}
+
+// Type returns the type of the field.
+func (p *UnresolvedField) Type() sql.Type {
+	panic("unresolved field is a placeholder node, but Type was called")
+}
+
+// Eval implements the Expression interface.
+func (p *UnresolvedField) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	panic("unresolved field is a placeholder node, but Eval was called")
+}
+
+// WithChildren implements the Expression interface.
+func (p *UnresolvedField) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	if len(children) != 1 {
+		return nil, sql.ErrInvalidChildrenNumber.New(p, len(children), 1)
+	}
+	return &UnresolvedField{children[0], p.Name}, nil
+}
+
+func (p *UnresolvedField) String() string {
+	return fmt.Sprintf("%s.%s", p.Struct, p.Name)
+}

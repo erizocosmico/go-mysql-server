@@ -2786,6 +2786,64 @@ func TestGenerators(t *testing.T) {
 	}
 }
 
+var structQueries = []struct {
+	query    string
+	expected []sql.Row
+}{
+	{
+		`SELECT s.i, t.s.t FROM t ORDER BY s.i`,
+		[]sql.Row{
+			{int64(1), "first"},
+			{int64(2), "second"},
+			{int64(3), "third"},
+		},
+	},
+	{
+		`SELECT s.i, s.t FROM t ORDER BY s.i`,
+		[]sql.Row{
+			{int64(1), "first"},
+			{int64(2), "second"},
+			{int64(3), "third"},
+		},
+	},
+	{
+		`SELECT s.i, COUNT(*) FROM t GROUP BY s.i`,
+		[]sql.Row{
+			{int64(1), int64(1)},
+			{int64(2), int64(1)},
+			{int64(3), int64(1)},
+		},
+	},
+}
+
+func TestStructs(t *testing.T) {
+	schema := sql.Schema{
+		{Name: "i", Type: sql.Int64},
+		{Name: "t", Type: sql.Text},
+	}
+	table := mem.NewPartitionedTable("t", sql.Schema{
+		{Name: "s", Type: sql.Struct(schema), Source: "t"},
+	}, testNumPartitions)
+
+	insertRows(
+		t, table,
+		sql.NewRow(map[string]interface{}{"i": int64(1), "t": "first"}),
+		sql.NewRow(map[string]interface{}{"i": int64(2), "t": "second"}),
+		sql.NewRow(map[string]interface{}{"i": int64(3), "t": "third"}),
+	)
+
+	db := mem.NewDatabase("db")
+	db.AddTable("t", table)
+
+	catalog := sql.NewCatalog()
+	catalog.AddDatabase(db)
+	e := sqle.New(catalog, analyzer.NewDefault(catalog), new(sqle.Config))
+
+	for _, q := range structQueries {
+		testQuery(t, e, q.query, q.expected)
+	}
+}
+
 func insertRows(t *testing.T, table sql.Inserter, rows ...sql.Row) {
 	t.Helper()
 

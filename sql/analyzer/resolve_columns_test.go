@@ -186,14 +186,24 @@ func TestQualifyColumns(t *testing.T) {
 
 	node = plan.NewProject(
 		[]sql.Expression{
-			expression.NewUnresolvedQualifiedColumn("foo", "i"),
+			expression.NewUnresolvedQualifiedColumn("i", "some_field"),
 		},
-		plan.NewTableAlias("a", plan.NewResolvedTable(table)),
+		plan.NewResolvedTable(table),
 	)
 
-	_, err = f.Apply(sql.NewEmptyContext(), nil, node)
-	require.Error(err)
-	require.True(sql.ErrTableNotFound.Is(err))
+	expected = plan.NewProject(
+		[]sql.Expression{
+			expression.NewUnresolvedField(
+				expression.NewUnresolvedColumn("i"),
+				"some_field",
+			),
+		},
+		plan.NewResolvedTable(table),
+	)
+
+	result, err = f.Apply(sql.NewEmptyContext(), nil, node)
+	require.NoError(err)
+	require.Equal(expected, result)
 
 	node = plan.NewProject(
 		[]sql.Expression{
